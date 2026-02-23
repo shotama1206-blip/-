@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'" />
+  <title>日本株ポートフォリオ管理</title>
+  <link rel="stylesheet" href="../../node_modules/ag-grid-community/styles/ag-grid.css" />
+  <link rel="stylesheet" href="../../node_modules/ag-grid-community/styles/ag-theme-alpine.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ヘッダー -->
+  <header id="app-header">
+    <h1>日本株ポートフォリオ管理</h1>
+    <button id="btn-settings" type="button">設定</button>
+  </header>
+
+  <!-- タブナビゲーション -->
+  <nav id="tab-nav">
+    <button class="tab-btn active" data-tab="screening">スクリーニング</button>
+    <button class="tab-btn" data-tab="portfolio">ポートフォリオ</button>
+  </nav>
+
+  <!-- スクリーニングタブ -->
+  <section id="tab-screening" class="tab-panel active">
+    <div class="toolbar">
+      <button id="btn-fetch-screening" type="button">銘柄データ取得</button>
+      <span id="screening-status" class="status-text"></span>
+    </div>
+    <div id="screening-grid" class="ag-theme-alpine grid-container"></div>
+  </section>
+
+  <!-- ポートフォリオタブ -->
+  <section id="tab-portfolio" class="tab-panel">
+    <div class="toolbar">
+      <button id="btn-refresh-portfolio" type="button">損益更新</button>
+      <button id="btn-add-holding" type="button">銘柄追加</button>
+      <span id="portfolio-status" class="status-text"></span>
+    </div>
+    <div id="portfolio-grid" class="ag-theme-alpine grid-container"></div>
+  </section>
+
+  <!-- 設定モーダル -->
+  <div id="modal-settings" class="modal hidden">
+    <div class="modal-content">
+      <h2>API設定</h2>
+      <form id="form-settings">
+        <label>
+          メールアドレス
+          <input type="email" id="input-mail" required />
+        </label>
+        <label>
+          パスワード
+          <input type="password" id="input-password" placeholder="変更する場合のみ入力" />
+        </label>
+        <div class="modal-actions">
+          <button type="submit">保存</button>
+          <button type="button" id="btn-close-settings">閉じる</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 銘柄追加モーダル -->
+  <div id="modal-add-holding" class="modal hidden">
+    <div class="modal-content">
+      <h2>保有銘柄を追加</h2>
+      <form id="form-add-holding">
+        <label>
+          銘柄コード
+          <input type="text" id="input-code" required placeholder="例: 7203" />
+        </label>
+        <label>
+          保有株数
+          <input type="number" id="input-shares" required min="1" />
+        </label>
+        <label>
+          平均取得単価 (円)
+          <input type="number" id="input-avg-cost" required min="0" step="0.01" />
+        </label>
+        <div class="modal-actions">
+          <button type="submit">追加</button>
+          <button type="button" id="btn-close-add-holding">閉じる</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../../node_modules/ag-grid-community/dist/ag-grid-community.noStyle.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

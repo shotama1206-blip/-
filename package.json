@@ -8,6 +8,7 @@
     "dev": "electron . --enable-logging"
   },
   "dependencies": {
+    "ag-grid-community": "^32.0.0",
     "electron": "^33.0.0"
   }
 }
