@@ -1,0 +1,13 @@
+{
+  "name": "jp-stock-portfolio",
+  "version": "0.1.0",
+  "description": "J-Quants APIを利用した日本株ポートフォリオ管理アプリ",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging"
+  },
+  "dependencies": {
+    "electron": "^33.0.0"
+  }
+}
