@@ -47,13 +47,11 @@
       <h2>API設定</h2>
       <form id="form-settings">
         <label>
-          メールアドレス
-          <input type="email" id="input-mail" required />
+          J-Quants APIキー（リフレッシュトークン）
+          <input type="password" id="input-api-key" required
+                 placeholder="APIキーを入力" />
         </label>
-        <label>
-          パスワード
-          <input type="password" id="input-password" placeholder="変更する場合のみ入力" />
-        </label>
+        <p id="api-key-status" style="font-size:12px;color:#888;margin-bottom:8px;"></p>
         <div class="modal-actions">
           <button type="submit">保存</button>
           <button type="button" id="btn-close-settings">閉じる</button>

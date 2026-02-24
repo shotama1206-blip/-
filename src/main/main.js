@@ -38,23 +38,21 @@ function createWindow() {
 function registerIpcHandlers() {
   // ---- 設定 ----
 
-  /** API認証情報を保存する */
-  ipcMain.handle('settings:save-credentials', async (_event, { mailAddress, password }) => {
+  /** APIキーを保存する */
+  ipcMain.handle('settings:save-api-key', async (_event, apiKey) => {
     const store = getSettingsStore();
-    store.set('jquantsMailAddress', mailAddress);
-    store.set('jquantsPassword', password);
+    store.set('jquantsApiKey', apiKey);
     // 認証情報が変わったのでトークンを無効化
     jquants.invalidateToken();
     jquants.clearCache();
     return { success: true };
   });
 
-  /** 保存済みのメールアドレスを返す（パスワードはフロントに返さない） */
-  ipcMain.handle('settings:get-credentials', async () => {
+  /** APIキーの設定状態を返す（キー自体はフロントに返さない） */
+  ipcMain.handle('settings:get-api-key-status', async () => {
     const store = getSettingsStore();
     return {
-      mailAddress: store.get('jquantsMailAddress', ''),
-      hasPassword: !!store.get('jquantsPassword', ''),
+      hasApiKey: !!store.get('jquantsApiKey', ''),
     };
   });
 

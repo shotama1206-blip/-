@@ -10,7 +10,7 @@
 const https = require('https');
 const { getSettingsStore } = require('./store');
 
-const BASE_URL = 'https://api.jquants.com/v1';
+const BASE_URL = 'https://api.jquants.com/v2';
 
 // --- インメモリキャッシュ ---
 const cache = new Map();
@@ -45,33 +45,27 @@ let idToken = null;
 let idTokenExpiresAt = 0;
 
 /**
- * J-Quants にメールアドレス + パスワードでログインし
- * リフレッシュトークンを取得する
+ * 設定ストアから保存済みの APIキー（リフレッシュトークン）を取得する。
+ * V2 ではメールアドレス/パスワードによる auth_user は不要。
  */
-async function getRefreshToken() {
+function getApiKey() {
   const settings = getSettingsStore();
-  const mailaddress = settings.get('jquantsMailAddress', '');
-  const password = settings.get('jquantsPassword', '');
-  if (!mailaddress || !password) {
-    throw new Error('J-Quants APIのメールアドレスとパスワードが設定されていません');
+  const apiKey = settings.get('jquantsApiKey', '');
+  if (!apiKey) {
+    throw new Error('J-Quants APIキーが設定されていません。設定画面で入力してください。');
   }
-
-  const body = JSON.stringify({ mailaddress, password });
-  const data = await httpRequest('POST', `${BASE_URL}/token/auth_user`, body, {
-    'Content-Type': 'application/json',
-  });
-  return data.refreshToken;
+  return apiKey;
 }
 
 /**
- * リフレッシュトークンからIDトークン（アクセストークン）を取得する。
+ * APIキー（リフレッシュトークン）からIDトークン（アクセストークン）を取得する。
  * 有効期限内ならキャッシュ済みトークンを返す。
  */
 async function getIdToken() {
   if (idToken && Date.now() < idTokenExpiresAt) {
     return idToken;
   }
-  const refreshToken = await getRefreshToken();
+  const refreshToken = getApiKey();
   const data = await httpRequest(
     'POST',
     `${BASE_URL}/token/auth_refresh?refreshtoken=${encodeURIComponent(refreshToken)}`,
@@ -193,22 +187,22 @@ async function getDailyQuotes(code, from, to) {
 }
 
 /**
- * 財務情報を取得
+ * 財務サマリーを取得（V2: /fins/summary）
  * @param {string} code - 銘柄コード
  * @param {string} [date] - 基準日
  */
-async function getFinancialStatements(code, date) {
+async function getFinancialSummary(code, date) {
   const params = { code };
   if (date) params.date = date;
-  const data = await fetchApi('/fins/statements', params, 30 * 60 * 1000); // 30分キャッシュ
-  return data.statements || [];
+  const data = await fetchApi('/fins/summary', params, 30 * 60 * 1000); // 30分キャッシュ
+  return data.financialSummary || [];
 }
 
 module.exports = {
   fetchApi,
   getListedInfo,
   getDailyQuotes,
-  getFinancialStatements,
+  getFinancialSummary,
   clearCache,
   invalidateToken,
 };

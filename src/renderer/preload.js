@@ -9,11 +9,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   // ---- 設定 ----
-  saveCredentials: (mailAddress, password) =>
-    ipcRenderer.invoke('settings:save-credentials', { mailAddress, password }),
+  saveApiKey: (apiKey) =>
+    ipcRenderer.invoke('settings:save-api-key', apiKey),
 
-  getCredentials: () =>
-    ipcRenderer.invoke('settings:get-credentials'),
+  getApiKeyStatus: () =>
+    ipcRenderer.invoke('settings:get-api-key-status'),
 
   saveGridColumns: (columns) =>
     ipcRenderer.invoke('settings:save-grid-columns', columns),

@@ -38,17 +38,17 @@ async function buildScreeningData(codes) {
  */
 async function fetchAndMerge(code) {
   try {
-    const [quotes, statements] = await Promise.all([
+    const [quotes, summary] = await Promise.all([
       jquants.getDailyQuotes(code),
-      jquants.getFinancialStatements(code),
+      jquants.getFinancialSummary(code),
     ]);
 
     if (!quotes.length) return null;
 
     // 直近の日足データ
     const latest = quotes[quotes.length - 1];
-    // 直近の財務データ
-    const latestFin = statements.length ? statements[statements.length - 1] : {};
+    // 直近の財務サマリー
+    const latestFin = summary.length ? summary[summary.length - 1] : {};
 
     return {
       code: latest.Code,
@@ -58,6 +58,7 @@ async function fetchAndMerge(code) {
       low: latest.Low,
       close: latest.Close,
       volume: latest.Volume,
+      turnoverValue: latest.TurnoverValue != null ? latest.TurnoverValue : null,
       ...calcIndicators(latest, latestFin),
     };
   } catch (err) {
@@ -69,25 +70,39 @@ async function fetchAndMerge(code) {
 // --- 投資指標の計算 ---
 
 /**
- * 株価データと財務データから投資指標を算出する
+ * 数値として安全にパースする。空文字・null・undefined・NaN は null を返す。
+ */
+function safeNum(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * 株価データと財務サマリーから投資指標を算出する。
+ * V2 の /fins/summary は省略フィールド名（EPS, BPS 等）を使用する。
+ * 値が空・0・欠落の場合でもエラーにならず null を返す安全な実装。
  *
  * @param {object} quote - 直近の日足データ
- * @param {object} fin   - 直近の財務データ
+ * @param {object} fin   - 直近の財務サマリー
  * @returns {object} 算出された指標群
  */
 function calcIndicators(quote, fin) {
-  const close = quote.Close;
-  const eps = parseFloat(fin.EarningsPerShare) || 0;
-  const bps = parseFloat(fin.BookValuePerShare) || 0;
-  const dividend = parseFloat(fin.DividendPerShare) || 0;
+  const close = safeNum(quote.Close);
+  // V2 省略フィールド名に対応（EPS, BPS）。V1名もフォールバックとして確認
+  const eps = safeNum(fin.EPS) ?? safeNum(fin.EarningsPerShare);
+  const bps = safeNum(fin.BPS) ?? safeNum(fin.BookValuePerShare);
+  const dividend = safeNum(fin.DividendPerShare);
 
   return {
-    eps,
-    bps,
+    eps: eps,
+    bps: bps,
     dividendPerShare: dividend,
-    per: eps > 0 ? round(close / eps, 2) : null,
-    pbr: bps > 0 ? round(close / bps, 2) : null,
-    dividendYield: close > 0 && dividend > 0 ? round((dividend / close) * 100, 2) : null,
+    per: (close != null && eps != null && eps > 0) ? round(close / eps, 2) : null,
+    pbr: (close != null && bps != null && bps > 0) ? round(close / bps, 2) : null,
+    dividendYield: (close != null && close > 0 && dividend != null && dividend > 0)
+      ? round((dividend / close) * 100, 2)
+      : null,
   };
 }
 
@@ -141,6 +156,7 @@ async function enrichHolding(holding) {
       marketValue: round(marketValue, 0),
       profitLoss: round(profitLoss, 0),
       profitLossPercent,
+      turnoverValue: latest.TurnoverValue != null ? latest.TurnoverValue : null,
       date: latest.Date,
     };
   } catch (err) {

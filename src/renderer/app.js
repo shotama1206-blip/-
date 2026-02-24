@@ -25,6 +25,8 @@ const screeningColumnDefs = [
   { headerName: '終値', field: 'close', width: 100, type: 'numericColumn' },
   { headerName: '出来高', field: 'volume', width: 120, type: 'numericColumn',
     valueFormatter: function (p) { return p.value != null ? p.value.toLocaleString() : ''; } },
+  { headerName: '売買代金', field: 'turnoverValue', width: 140, type: 'numericColumn',
+    valueFormatter: function (p) { return p.value != null ? p.value.toLocaleString() : ''; } },
   { headerName: 'EPS', field: 'eps', width: 90, type: 'numericColumn' },
   { headerName: 'BPS', field: 'bps', width: 90, type: 'numericColumn' },
   { headerName: 'PER', field: 'per', width: 90, type: 'numericColumn' },
@@ -56,6 +58,8 @@ const portfolioColumnDefs = [
       if (p.value < 0) return { color: '#1565c0' };
       return null;
     } },
+  { headerName: '売買代金', field: 'turnoverValue', width: 140, type: 'numericColumn',
+    valueFormatter: function (p) { return p.value != null ? p.value.toLocaleString() : ''; } },
   { headerName: '基準日', field: 'date', width: 110 },
   { headerName: '', field: '_action', width: 80, pinned: 'right', sortable: false,
     filter: false,
@@ -126,14 +130,14 @@ function initTabs() {
 
 function initSettingsModal() {
   var modal = document.getElementById('modal-settings');
-  var inputMail = document.getElementById('input-mail');
-  var inputPassword = document.getElementById('input-password');
+  var inputApiKey = document.getElementById('input-api-key');
+  var statusText = document.getElementById('api-key-status');
 
   document.getElementById('btn-settings').addEventListener('click', async function () {
-    var creds = await window.api.getCredentials();
-    inputMail.value = creds.mailAddress;
-    inputPassword.value = '';
-    inputPassword.placeholder = creds.hasPassword ? '(設定済み・変更する場合のみ入力)' : 'パスワードを入力';
+    var status = await window.api.getApiKeyStatus();
+    inputApiKey.value = '';
+    statusText.textContent = status.hasApiKey ? 'APIキーは設定済みです' : 'APIキーが未設定です';
+    inputApiKey.placeholder = status.hasApiKey ? '(設定済み・変更する場合のみ入力)' : 'APIキーを入力';
     modal.classList.remove('hidden');
   });
 
@@ -143,15 +147,9 @@ function initSettingsModal() {
 
   document.getElementById('form-settings').addEventListener('submit', async function (e) {
     e.preventDefault();
-    var mail = inputMail.value.trim();
-    var pass = inputPassword.value;
-    if (!mail) return;
-    if (pass) {
-      await window.api.saveCredentials(mail, pass);
-    } else {
-      // パスワード未入力ならメールアドレスだけ更新（既存パスワード維持のため再送しない）
-      await window.api.saveCredentials(mail, '');
-    }
+    var apiKey = inputApiKey.value.trim();
+    if (!apiKey) return;
+    await window.api.saveApiKey(apiKey);
     modal.classList.add('hidden');
   });
 }

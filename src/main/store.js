@@ -70,8 +70,7 @@ let settingsStore = null;
 function getSettingsStore() {
   if (!settingsStore) {
     settingsStore = new Store('settings.json', {
-      jquantsMailAddress: '',
-      jquantsPassword: '',
+      jquantsApiKey: '',
       gridColumns: [],
     });
   }
