@@ -1,8 +1,8 @@
 /**
- * jquants_client.js - J-Quants API 通信モジュール
+ * jquants_client.js - J-Quants API V2 通信モジュール
  *
  * 責務:
- *   - リフレッシュトークン / IDトークンのライフサイクル管理
+ *   - x-api-key ヘッダーによる認証
  *   - 全APIリクエストに対する 429 (Rate Limit) リトライ（指数バックオフ）
  *   - インメモリキャッシュによる重複リクエストの抑制
  */
@@ -40,13 +40,11 @@ function clearCache() {
   cache.clear();
 }
 
-// --- トークン管理 ---
-let idToken = null;
-let idTokenExpiresAt = 0;
+// --- APIキー取得 ---
 
 /**
- * 設定ストアから保存済みの APIキー（リフレッシュトークン）を取得する。
- * V2 ではメールアドレス/パスワードによる auth_user は不要。
+ * 設定ストアから保存済みの APIキーを取得する。
+ * V2 では x-api-key ヘッダーに直接渡す。
  */
 function getApiKey() {
   const settings = getSettingsStore();
@@ -55,33 +53,6 @@ function getApiKey() {
     throw new Error('J-Quants APIキーが設定されていません。設定画面で入力してください。');
   }
   return apiKey;
-}
-
-/**
- * APIキー（リフレッシュトークン）からIDトークン（アクセストークン）を取得する。
- * 有効期限内ならキャッシュ済みトークンを返す。
- */
-async function getIdToken() {
-  if (idToken && Date.now() < idTokenExpiresAt) {
-    return idToken;
-  }
-  const refreshToken = getApiKey();
-  const data = await httpRequest(
-    'POST',
-    `${BASE_URL}/token/auth_refresh?refreshtoken=${encodeURIComponent(refreshToken)}`,
-    null,
-    {}
-  );
-  idToken = data.idToken;
-  // IDトークンは24時間有効だが、安全マージンとして23時間でリフレッシュ
-  idTokenExpiresAt = Date.now() + 23 * 60 * 60 * 1000;
-  return idToken;
-}
-
-/** IDトークンを強制的に破棄し、次回リクエスト時に再取得させる */
-function invalidateToken() {
-  idToken = null;
-  idTokenExpiresAt = 0;
 }
 
 // --- HTTP リクエスト基盤 ---
@@ -140,8 +111,10 @@ function httpRequest(method, url, body, headers, retryCount = 0) {
 // --- 公開 API メソッド ---
 
 /**
- * 認証付き GET リクエスト（キャッシュ対応）
- * @param {string} endpoint - 例: '/listed/info'
+ * 認証付き GET リクエスト（キャッシュ・ページネーション対応）
+ * V2 は x-api-key ヘッダーで認証し、レスポンスは { data: [...], pagination_key? } 形式。
+ *
+ * @param {string} endpoint - 例: '/equities/master'
  * @param {object} [params] - クエリパラメータ
  * @param {number} [cacheTtlMs] - キャッシュ有効期間
  */
@@ -150,30 +123,44 @@ async function fetchApi(endpoint, params = {}, cacheTtlMs = DEFAULT_CACHE_TTL_MS
   const cached = getCached(cacheKey);
   if (cached) return cached;
 
-  const token = await getIdToken();
-  const query = new URLSearchParams(params).toString();
-  const url = `${BASE_URL}${endpoint}${query ? '?' + query : ''}`;
-  const data = await httpRequest('GET', url, null, {
-    Authorization: `Bearer ${token}`,
-  });
+  const apiKey = getApiKey();
+  let allData = [];
+  let currentParams = { ...params };
 
-  setCache(cacheKey, data, cacheTtlMs);
-  return data;
+  // ページネーション対応: pagination_key がある限り次ページを取得
+  do {
+    const query = new URLSearchParams(currentParams).toString();
+    const url = `${BASE_URL}${endpoint}${query ? '?' + query : ''}`;
+    const res = await httpRequest('GET', url, null, {
+      'x-api-key': apiKey,
+    });
+
+    const pageData = res.data || [];
+    allData = allData.concat(pageData);
+
+    if (res.pagination_key) {
+      currentParams.pagination_key = res.pagination_key;
+    } else {
+      break;
+    }
+  } while (true);
+
+  setCache(cacheKey, allData, cacheTtlMs);
+  return allData;
 }
 
 /**
- * 上場銘柄一覧を取得
+ * 上場銘柄一覧を取得（V2: /equities/master）
  * @param {string} [date] - 基準日 (YYYY-MM-DD)
  */
 async function getListedInfo(date) {
   const params = {};
   if (date) params.date = date;
-  const data = await fetchApi('/listed/info', params);
-  return data.info || [];
+  return await fetchApi('/equities/master', params);
 }
 
 /**
- * 株価四本値（日足）を取得
+ * 株価四本値（日足）を取得（V2: /equities/bars/daily）
  * @param {string} code - 銘柄コード
  * @param {string} [from] - 開始日
  * @param {string} [to]   - 終了日
@@ -182,8 +169,7 @@ async function getDailyQuotes(code, from, to) {
   const params = { code };
   if (from) params.from = from;
   if (to) params.to = to;
-  const data = await fetchApi('/prices/daily_quotes', params);
-  return data.daily_quotes || [];
+  return await fetchApi('/equities/bars/daily', params);
 }
 
 /**
@@ -194,8 +180,7 @@ async function getDailyQuotes(code, from, to) {
 async function getFinancialSummary(code, date) {
   const params = { code };
   if (date) params.date = date;
-  const data = await fetchApi('/fins/summary', params, 30 * 60 * 1000); // 30分キャッシュ
-  return data.financialSummary || [];
+  return await fetchApi('/fins/summary', params, 30 * 60 * 1000); // 30分キャッシュ
 }
 
 module.exports = {
@@ -204,5 +189,4 @@ module.exports = {
   getDailyQuotes,
   getFinancialSummary,
   clearCache,
-  invalidateToken,
 };

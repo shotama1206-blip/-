@@ -42,8 +42,7 @@ function registerIpcHandlers() {
   ipcMain.handle('settings:save-api-key', async (_event, apiKey) => {
     const store = getSettingsStore();
     store.set('jquantsApiKey', apiKey);
-    // 認証情報が変わったのでトークンを無効化
-    jquants.invalidateToken();
+    // APIキーが変わったのでキャッシュを無効化
     jquants.clearCache();
     return { success: true };
   });

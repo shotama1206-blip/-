@@ -53,12 +53,12 @@ async function fetchAndMerge(code) {
     return {
       code: latest.Code,
       date: latest.Date,
-      open: latest.Open,
-      high: latest.High,
-      low: latest.Low,
-      close: latest.Close,
-      volume: latest.Volume,
-      turnoverValue: latest.TurnoverValue != null ? latest.TurnoverValue : null,
+      open: latest.O ?? latest.Open,
+      high: latest.H ?? latest.High,
+      low: latest.L ?? latest.Low,
+      close: latest.C ?? latest.Close,
+      volume: latest.Vo ?? latest.Volume,
+      turnoverValue: latest.Va ?? latest.TurnoverValue ?? null,
       ...calcIndicators(latest, latestFin),
     };
   } catch (err) {
@@ -88,11 +88,13 @@ function safeNum(value) {
  * @returns {object} 算出された指標群
  */
 function calcIndicators(quote, fin) {
-  const close = safeNum(quote.Close);
-  // V2 省略フィールド名に対応（EPS, BPS）。V1名もフォールバックとして確認
+  // V2: C (Close), V1フォールバック: Close
+  const close = safeNum(quote.C) ?? safeNum(quote.Close);
+  // V2: EPS / BPS、V1フォールバック: EarningsPerShare / BookValuePerShare
   const eps = safeNum(fin.EPS) ?? safeNum(fin.EarningsPerShare);
   const bps = safeNum(fin.BPS) ?? safeNum(fin.BookValuePerShare);
-  const dividend = safeNum(fin.DividendPerShare);
+  // V2: DivAnn (年間配当)、V1フォールバック: DividendPerShare
+  const dividend = safeNum(fin.DivAnn) ?? safeNum(fin.DividendPerShare);
 
   return {
     eps: eps,
@@ -140,7 +142,8 @@ async function enrichHolding(holding) {
     if (!quotes.length) return null;
 
     const latest = quotes[quotes.length - 1];
-    const currentPrice = latest.Close;
+    // V2: C, V1フォールバック: Close
+    const currentPrice = latest.C ?? latest.Close;
     const totalCost = holding.shares * holding.avgCost;
     const marketValue = holding.shares * currentPrice;
     const profitLoss = marketValue - totalCost;
@@ -156,7 +159,7 @@ async function enrichHolding(holding) {
       marketValue: round(marketValue, 0),
       profitLoss: round(profitLoss, 0),
       profitLossPercent,
-      turnoverValue: latest.TurnoverValue != null ? latest.TurnoverValue : null,
+      turnoverValue: latest.Va ?? latest.TurnoverValue ?? null,
       date: latest.Date,
     };
   } catch (err) {
