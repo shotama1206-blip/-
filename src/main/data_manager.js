@@ -53,12 +53,12 @@ async function fetchAndMerge(code) {
     return {
       code: latest.Code,
       date: latest.Date,
-      open: latest.O ?? latest.Open,
-      high: latest.H ?? latest.High,
-      low: latest.L ?? latest.Low,
-      close: latest.C ?? latest.Close,
-      volume: latest.Vo ?? latest.Volume,
-      turnoverValue: latest.Va ?? latest.TurnoverValue ?? null,
+      open: safeNum(latest.O),
+      high: safeNum(latest.H),
+      low: safeNum(latest.L),
+      close: safeNum(latest.C),
+      volume: safeNum(latest.Vo),
+      turnoverValue: safeNum(latest.Va),
       ...calcIndicators(latest, latestFin),
     };
   } catch (err) {
@@ -80,26 +80,29 @@ function safeNum(value) {
 
 /**
  * 株価データと財務サマリーから投資指標を算出する。
- * V2 の /fins/summary は省略フィールド名（EPS, BPS 等）を使用する。
- * 値が空・0・欠落の場合でもエラーにならず null を返す安全な実装。
+ * V2 の省略フィールド名を直接使用する。
+ * 値が欠落・0 の場合でもゼロ除算を起こさず null を返す安全な実装。
  *
- * @param {object} quote - 直近の日足データ
- * @param {object} fin   - 直近の財務サマリー
+ * @param {object} quote - 直近の日足データ (V2: C, AdjC, O, H, L, Vo, Va)
+ * @param {object} fin   - 直近の財務サマリー (V2: EPS, BPS, NetSales, OperatingProfit, Profit, TotalAssets, Equity)
  * @returns {object} 算出された指標群
  */
 function calcIndicators(quote, fin) {
-  // V2: C (Close), V1フォールバック: Close
-  const close = safeNum(quote.C) ?? safeNum(quote.Close);
-  // V2: EPS / BPS、V1フォールバック: EarningsPerShare / BookValuePerShare
-  const eps = safeNum(fin.EPS) ?? safeNum(fin.EarningsPerShare);
-  const bps = safeNum(fin.BPS) ?? safeNum(fin.BookValuePerShare);
-  // V2: DivAnn (年間配当)、V1フォールバック: DividendPerShare
-  const dividend = safeNum(fin.DivAnn) ?? safeNum(fin.DividendPerShare);
+  // 指標計算には調整後終値を優先（株式分割補正済み）、なければ終値
+  const close = safeNum(quote.AdjC) ?? safeNum(quote.C);
+  const eps = safeNum(fin.EPS);
+  const bps = safeNum(fin.BPS);
+  const dividend = safeNum(fin.DivAnn);
 
   return {
-    eps: eps,
-    bps: bps,
+    eps,
+    bps,
     dividendPerShare: dividend,
+    netSales: safeNum(fin.NetSales),
+    operatingProfit: safeNum(fin.OperatingProfit),
+    profit: safeNum(fin.Profit),
+    totalAssets: safeNum(fin.TotalAssets),
+    equity: safeNum(fin.Equity),
     per: (close != null && eps != null && eps > 0) ? round(close / eps, 2) : null,
     pbr: (close != null && bps != null && bps > 0) ? round(close / bps, 2) : null,
     dividendYield: (close != null && close > 0 && dividend != null && dividend > 0)
@@ -142,8 +145,9 @@ async function enrichHolding(holding) {
     if (!quotes.length) return null;
 
     const latest = quotes[quotes.length - 1];
-    // V2: C, V1フォールバック: Close
-    const currentPrice = latest.C ?? latest.Close;
+    const currentPrice = safeNum(latest.AdjC) ?? safeNum(latest.C);
+    if (currentPrice == null) return null;
+
     const totalCost = holding.shares * holding.avgCost;
     const marketValue = holding.shares * currentPrice;
     const profitLoss = marketValue - totalCost;
@@ -159,7 +163,7 @@ async function enrichHolding(holding) {
       marketValue: round(marketValue, 0),
       profitLoss: round(profitLoss, 0),
       profitLossPercent,
-      turnoverValue: latest.Va ?? latest.TurnoverValue ?? null,
+      turnoverValue: safeNum(latest.Va),
       date: latest.Date,
     };
   } catch (err) {
